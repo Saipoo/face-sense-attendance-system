@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useCamera } from '@/hooks/use-camera';
 import { useFaceApi } from '@/hooks/use-face-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Check, X, UserPlus } from 'lucide-react';
+import { Check, X, UserPlus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface TakeAttendanceProps {
@@ -159,7 +160,7 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-4 max-w-md mx-auto animate-slide-in">
+    <div className="flex flex-col items-center justify-center h-full p-4 max-w-md mx-auto animate-fade-in">
       <h2 className="text-2xl font-semibold mb-4 text-center">Take Attendance</h2>
       
       <Card className="w-full overflow-hidden mb-6">
@@ -183,13 +184,28 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
               } hidden`}
             />
             
+            {!cameraReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
+            )}
+            
+            {!faceApiLoaded && cameraReady && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-2 text-center">
+                <p className="text-white text-sm flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                  Loading face detection...
+                </p>
+              </div>
+            )}
+            
             {recognitionStatus === 'recognized' && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-30">
                 <div className="bg-success/20 p-4 rounded-full mb-3">
                   <Check className="h-8 w-8 text-success" />
                 </div>
-                <div className="bg-white bg-opacity-90 px-4 py-2 rounded-md">
-                  <p className="text-primary font-semibold">{recognizedStudent}</p>
+                <div className="bg-green-500 bg-opacity-90 px-4 py-2 rounded-md">
+                  <p className="text-white font-semibold">{recognizedStudent}</p>
                 </div>
                 <p className="text-white mt-4 font-semibold">
                   Marking Attendance...

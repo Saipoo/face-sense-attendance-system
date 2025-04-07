@@ -9,10 +9,15 @@ interface UseFaceApiProps {
 export function useFaceApi({ enabled = true }: UseFaceApiProps = {}) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingStarted = useRef(false);
   const modelsPath = '/models';
 
   useEffect(() => {
     if (!enabled) return;
+    if (loadingStarted.current) return; // Prevent duplicate loading attempts
+    
+    loadingStarted.current = true;
+    console.log("Starting to load face-api models");
 
     const loadModels = async () => {
       try {
@@ -22,6 +27,7 @@ export function useFaceApi({ enabled = true }: UseFaceApiProps = {}) {
           faceapi.nets.faceRecognitionNet.loadFromUri(modelsPath),
           faceapi.nets.faceExpressionNet.loadFromUri(modelsPath)
         ]);
+        console.log("Face-api models loaded successfully");
         setIsLoaded(true);
       } catch (err) {
         console.error('Error loading face-api models:', err);

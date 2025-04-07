@@ -1,4 +1,3 @@
-
 /**
  * This is a backend implementation using Node.js, Express, and MongoDB
  * You can run this separately on your local machine
@@ -15,7 +14,7 @@ const PDFDocument = require('pdfkit');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for face data
 
 // MongoDB Connection
 mongoose.connect('mongodb://localhost:27017/smartAttendance', {
@@ -29,7 +28,8 @@ mongoose.connect('mongodb://localhost:27017/smartAttendance', {
 const studentSchema = new mongoose.Schema({
   usn: { type: String, required: true, unique: true },
   name: { type: String, default: '' },
-  faceDescriptor: { type: [Number], required: true }
+  faceDescriptor: { type: [Number], required: true },
+  photoData: { type: String } // Store base64 encoded image
 });
 
 const subjectSchema = new mongoose.Schema({
@@ -75,7 +75,9 @@ const upload = multer({ storage });
 // Student Registration
 app.post('/api/students', async (req, res) => {
   try {
-    const { usn, faceDescriptor } = req.body;
+    const { usn, faceDescriptor, photoData } = req.body;
+    
+    console.log(`Registering student with USN: ${usn}`);
     
     // Check if student already exists
     const existingStudent = await Student.findOne({ usn });
@@ -83,17 +85,23 @@ app.post('/api/students', async (req, res) => {
     if (existingStudent) {
       // Update existing student
       existingStudent.faceDescriptor = faceDescriptor;
+      if (photoData) {
+        existingStudent.photoData = photoData;
+      }
       await existingStudent.save();
+      console.log(`Updated existing student: ${usn}`);
       return res.status(200).json(existingStudent);
     }
     
     // Create new student
     const student = new Student({
       usn,
-      faceDescriptor
+      faceDescriptor,
+      photoData
     });
     
     await student.save();
+    console.log(`New student registered: ${usn}`);
     res.status(201).json(student);
   } catch (error) {
     console.error('Error registering student:', error);
@@ -104,7 +112,7 @@ app.post('/api/students', async (req, res) => {
 // Get all students
 app.get('/api/students', async (req, res) => {
   try {
-    const students = await Student.find({}, { faceDescriptor: 0 }); // Exclude face descriptor for performance
+    const students = await Student.find({}, { faceDescriptor: 0, photoData: 0 }); // Exclude face descriptor and photo for performance
     res.status(200).json(students);
   } catch (error) {
     console.error('Error fetching students:', error);
@@ -129,7 +137,9 @@ app.get('/api/students/:usn/recognition', async (req, res) => {
 // Get all face descriptors for recognition
 app.get('/api/students/face-descriptors', async (req, res) => {
   try {
+    console.log('Fetching all face descriptors');
     const students = await Student.find({}, { usn: 1, faceDescriptor: 1 });
+    console.log(`Found ${students.length} students with face descriptors`);
     res.status(200).json(students);
   } catch (error) {
     console.error('Error fetching face descriptors:', error);

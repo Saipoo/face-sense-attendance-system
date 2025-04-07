@@ -1,6 +1,7 @@
 
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { UserRole, Student, AttendanceRecord, Timetable } from '../types';
+import * as api from '../services/api';
 
 interface AppContextValue {
   userRole: UserRole | null;
@@ -27,44 +28,64 @@ export function AppProvider({ children }: AppProviderProps) {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [timetable, setTimetable] = useState<Timetable | null>(null);
 
-  const registerStudent = (student: Student) => {
-    setStudents(prev => {
-      const exists = prev.findIndex(s => s.usn === student.usn);
-      if (exists >= 0) {
-        const updated = [...prev];
-        updated[exists] = student;
-        return updated;
+  // Fetch student face data on initialization
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        console.log('Fetching student face data from server...');
+        const studentData = await api.getAllStudentFaces();
+        console.log(`Loaded ${studentData.length} students with face data`);
+        setStudents(studentData);
+      } catch (err) {
+        console.error('Failed to fetch student face data:', err);
       }
-      return [...prev, student];
-    });
+    };
+
+    fetchStudents();
+  }, []);
+
+  const registerStudent = async (student: Student) => {
+    try {
+      // This will both update the backend and update our local state
+      await api.registerStudentFace(student);
+      
+      setStudents(prev => {
+        const exists = prev.findIndex(s => s.usn === student.usn);
+        if (exists >= 0) {
+          const updated = [...prev];
+          updated[exists] = student;
+          return updated;
+        }
+        return [...prev, student];
+      });
+    } catch (err) {
+      console.error('Failed to register student:', err);
+      throw err;
+    }
   };
 
   const getStudentByUSN = (usn: string) => {
     return students.find(student => student.usn === usn);
   };
 
-  const addAttendanceRecord = (record: AttendanceRecord) => {
+  const addAttendanceRecord = async (record: AttendanceRecord) => {
     // Check if student already marked attendance for this subject and date
     const exists = attendanceRecords.some(
       r => r.usn === record.usn && r.subject === record.subject && r.date === record.date
     );
 
     if (!exists) {
-      setAttendanceRecords(prev => [...prev, record]);
-      // In a real application, you would also send this to your backend
-      sendAttendanceToBackend(record);
+      try {
+        // Send to backend first
+        await api.markAttendance(record);
+        
+        // Update local state if backend call succeeds
+        setAttendanceRecords(prev => [...prev, record]);
+      } catch (err) {
+        console.error('Failed to mark attendance:', err);
+        throw err;
+      }
     }
-  };
-
-  const sendAttendanceToBackend = (record: AttendanceRecord) => {
-    console.log('Sending attendance record to backend:', record);
-    // In a real application, you would make an API call here
-    // Example:
-    // fetch('/api/attendance', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(record)
-    // });
   };
 
   const getCurrentSubject = () => {

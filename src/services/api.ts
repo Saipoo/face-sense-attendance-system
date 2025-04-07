@@ -1,4 +1,3 @@
-
 // This file contains API service functions to interact with the backend
 
 import { Student, AttendanceRecord, Timetable } from '../types';
@@ -6,6 +5,7 @@ import { Student, AttendanceRecord, Timetable } from '../types';
 const API_URL = 'http://localhost:5000/api';
 
 export async function registerStudentFace(student: Student): Promise<Student> {
+  console.log('Registering student face:', student.usn);
   const response = await fetch(`${API_URL}/students`, {
     method: 'POST',
     headers: {
@@ -23,6 +23,7 @@ export async function registerStudentFace(student: Student): Promise<Student> {
 }
 
 export async function getAllStudentFaces(): Promise<Student[]> {
+  console.log('Fetching all student faces');
   const response = await fetch(`${API_URL}/students/face-descriptors`);
   
   if (!response.ok) {
@@ -34,6 +35,7 @@ export async function getAllStudentFaces(): Promise<Student[]> {
 }
 
 export async function markAttendance(record: AttendanceRecord): Promise<AttendanceRecord> {
+  console.log('Marking attendance:', record);
   const response = await fetch(`${API_URL}/attendance`, {
     method: 'POST',
     headers: {

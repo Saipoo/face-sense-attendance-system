@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Check, Camera } from 'lucide-react';
+import { Check, Camera, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import * as api from '@/services/api';
 
 interface FaceRegistrationProps {
   onComplete: () => void;
@@ -24,6 +25,7 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
   const [selectedUSN, setSelectedUSN] = useState<string>('');
   const [usnList, setUsnList] = useState<string[]>([]);
   const [registrationStep, setRegistrationStep] = useState<'select' | 'capture' | 'success'>('select');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
   // Initialize face detection
@@ -51,6 +53,8 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
       return;
     }
 
+    setIsLoading(true);
+    
     try {
       // Take snapshot and detect face
       const detections = await detectFaces(videoRef.current);
@@ -61,6 +65,7 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
           description: "Please position your face clearly in the camera",
           variant: "destructive"
         });
+        setIsLoading(false);
         return;
       }
 
@@ -70,16 +75,27 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
           description: "Please ensure only your face is visible",
           variant: "destructive"
         });
+        setIsLoading(false);
         return;
       }
 
       // Get the face descriptor
-      const faceDescriptor = detections[0].descriptor;
+      const faceDescriptor = Array.from(detections[0].descriptor);
       
-      // Register the student
+      // Get snapshot for saving image
+      const photoData = takeSnapshot();
+      
+      // Register the student with MongoDB
+      await api.registerStudentFace({
+        usn: selectedUSN,
+        faceDescriptor: new Float32Array(faceDescriptor),
+        // In a real app, you'd send photoData to the server as well
+      });
+      
+      // Update local state
       registerStudent({
         usn: selectedUSN,
-        faceDescriptor: faceDescriptor
+        faceDescriptor: new Float32Array(faceDescriptor),
       });
 
       toast({
@@ -101,11 +117,13 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
         description: "An error occurred during face registration",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const renderSelectUSN = () => (
-    <div className="space-y-6 max-w-md mx-auto animate-slide-in">
+    <div className="space-y-6 max-w-md mx-auto animate-fade-in">
       <h2 className="text-2xl font-semibold text-center">Face Registration</h2>
       <p className="text-muted-foreground text-center">Please select your USN from the dropdown below.</p>
       
@@ -131,7 +149,7 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
   );
 
   const renderCaptureface = () => (
-    <div className="space-y-6 max-w-md mx-auto animate-slide-in">
+    <div className="space-y-6 max-w-md mx-auto animate-fade-in">
       <h2 className="text-2xl font-semibold text-center">Capture Your Face</h2>
       <p className="text-center text-primary font-medium">USN: {selectedUSN}</p>
       <p className="text-muted-foreground text-center mb-4">
@@ -149,6 +167,21 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
               className="w-full h-full object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
+            
+            {!cameraReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
+            )}
+            
+            {!faceApiLoaded && cameraReady && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-2 text-center">
+                <p className="text-white text-sm flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                  Loading face detection...
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -158,11 +191,15 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
           Back
         </Button>
         <Button 
-          disabled={!cameraReady || !faceApiLoaded} 
+          disabled={!cameraReady || !faceApiLoaded || isLoading} 
           onClick={handleRegistration}
           className="gap-2"
         >
-          <Camera className="h-4 w-4" /> Register Face
+          {isLoading ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Processing</>
+          ) : (
+            <><Camera className="h-4 w-4" /> Register Face</>
+          )}
         </Button>
       </div>
       
@@ -177,7 +214,7 @@ const FaceRegistration: React.FC<FaceRegistrationProps> = ({ onComplete }) => {
   );
 
   const renderSuccess = () => (
-    <div className="space-y-6 max-w-md mx-auto text-center animate-slide-in">
+    <div className="space-y-6 max-w-md mx-auto text-center animate-fade-in">
       <div className="bg-success/10 p-8 rounded-full w-24 h-24 mx-auto flex items-center justify-center">
         <Check className="h-12 w-12 text-success" />
       </div>
