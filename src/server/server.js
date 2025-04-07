@@ -1,16 +1,22 @@
+
 /**
  * This is a backend implementation using Node.js, Express, and MongoDB
  * You can run this separately on your local machine
  */
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const { createObjectCsvWriter } = require('csv-writer');
-const PDFDocument = require('pdfkit');
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+import { createObjectCsvWriter } from 'csv-writer';
+import PDFDocument from 'pdfkit';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -349,4 +355,4 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-module.exports = app;
+export default app;
