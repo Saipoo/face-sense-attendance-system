@@ -1,4 +1,3 @@
-
 /**
  * This is a backend implementation using Node.js, Express, and MongoDB
  * You can run this separately on your local machine
@@ -13,6 +12,7 @@ import path from 'path';
 import { createObjectCsvWriter } from 'csv-writer';
 import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'url';
+import https from 'https';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -22,12 +22,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for face data
 
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/smartAttendance', {
+// MongoDB Connection with cloud MongoDB
+const MONGODB_URI = 'mongodb+srv://alltimebest68:Poorna@123@cluster0.vn5g362.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
+.then(() => console.log('MongoDB connected to cloud database'))
 .catch(err => console.error('MongoDB connection error:', err));
 
 // Define Schemas
@@ -75,6 +77,61 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+// Function to download Face API models
+const downloadFaceApiModels = () => {
+  const modelsDir = path.join(__dirname, '../../public/models');
+  
+  // Create models directory if it doesn't exist
+  if (!fs.existsSync(modelsDir)) {
+    fs.mkdirSync(modelsDir, { recursive: true });
+    console.log('Created models directory at:', modelsDir);
+  }
+
+  const modelFiles = [
+    'tiny_face_detector_model-weights_manifest.json',
+    'tiny_face_detector_model-shard1',
+    'face_landmark_68_model-weights_manifest.json',
+    'face_landmark_68_model-shard1',
+    'face_recognition_model-weights_manifest.json',
+    'face_recognition_model-shard1',
+    'face_expression_model-weights_manifest.json',
+    'face_expression_model-shard1'
+  ];
+
+  const baseUrl = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+
+  // Download each model file
+  modelFiles.forEach(file => {
+    const filePath = path.join(modelsDir, file);
+    
+    // Skip if file already exists
+    if (fs.existsSync(filePath)) {
+      console.log(`Model ${file} already exists, skipping download.`);
+      return;
+    }
+    
+    const fileUrl = `${baseUrl}/${file}`;
+    console.log(`Downloading ${file} from ${fileUrl}`);
+    
+    const fileStream = fs.createWriteStream(filePath);
+    
+    https.get(fileUrl, (response) => {
+      response.pipe(fileStream);
+      
+      fileStream.on('finish', () => {
+        fileStream.close();
+        console.log(`Downloaded ${file} successfully`);
+      });
+    }).on('error', (err) => {
+      fs.unlink(filePath, () => {}); // Delete the file if there was an error
+      console.error(`Error downloading ${file}:`, err.message);
+    });
+  });
+};
+
+// Download face-api.js models when server starts
+downloadFaceApiModels();
 
 // API Routes
 

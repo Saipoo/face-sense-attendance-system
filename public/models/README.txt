@@ -1,8 +1,12 @@
 
-You need to download the face-api.js models into this folder.
+# Face API Models
 
-Download the following model files from https://github.com/justadudewhohacks/face-api.js/tree/master/weights:
+The required face-api.js model files should be automatically downloaded when the server starts.
 
+If the models are not downloaded automatically, you can manually download them from:
+https://github.com/justadudewhohacks/face-api.js/tree/master/weights
+
+Required model files:
 1. tiny_face_detector_model-weights_manifest.json
 2. tiny_face_detector_model-shard1
 3. face_landmark_68_model-weights_manifest.json
