@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useCamera } from '@/hooks/use-camera';
@@ -22,7 +21,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
   const boxRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
-  // Initialize face detection
   const { isLoaded: faceApiLoaded, detectFaces } = useFaceApi();
   const { videoRef, canvasRef, isReady: cameraReady } = useCamera({
     enabled: true,
@@ -30,7 +28,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
   });
 
   async function handleVideoFrame(imageData: ImageData) {
-    // Process only every 15 frames to improve performance
     frameCount.current = (frameCount.current + 1) % 15;
     if (frameCount.current !== 0 || processingFrame || !faceApiLoaded || recognitionStatus !== 'pending') {
       return;
@@ -47,19 +44,16 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
         return;
       }
 
-      // Get face position for the box
       const detection = detections[0];
       const box = detection.detection.box;
       updateBoxPosition(box);
       
-      // Try to match the face with registered students
       const currentFaceDescriptor = detection.descriptor;
       let matchedStudent = null;
-      let minDistance = 0.6; // Threshold for face recognition
+      let minDistance = 0.6;
       
       for (const student of students) {
         if (student.faceDescriptor) {
-          // Convert Float32Array to regular array for distance calculation
           const distance = calculateFaceDistance(
             Array.from(currentFaceDescriptor), 
             Array.from(student.faceDescriptor)
@@ -76,7 +70,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
         setRecognizedStudent(matchedStudent);
         setRecognitionStatus('recognized');
         
-        // Wait 5 seconds and then mark attendance
         recognitionTimeout.current = setTimeout(() => {
           markAttendance(matchedStudent);
         }, 5000);
@@ -90,7 +83,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
     }
   }
   
-  // Calculate euclidean distance between face descriptors
   function calculateFaceDistance(fd1: number[], fd2: number[]): number {
     return Math.sqrt(
       fd1.map((x, i) => Math.pow(x - fd2[i], 2))
@@ -109,7 +101,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
       return;
     }
     
-    // Calculate scaling factors
     const videoWidth = video.videoWidth;
     const videoHeight = video.videoHeight;
     const displayWidth = video.offsetWidth;
@@ -118,7 +109,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
     const scaleX = displayWidth / videoWidth;
     const scaleY = displayHeight / videoHeight;
     
-    // Update box position and size
     boxElement.style.display = 'block';
     boxElement.style.left = `${box.x * scaleX}px`;
     boxElement.style.top = `${box.y * scaleY}px`;
@@ -132,7 +122,7 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
       toast({
         title: "No Active Class",
         description: "There is no active class at this time according to the timetable",
-        variant: "warning"
+        variant: "destructive"
       });
       return;
     }
@@ -154,14 +144,12 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
       variant: "default"
     });
     
-    // Reset for next student
     setTimeout(() => {
       setRecognizedStudent(null);
       setRecognitionStatus('pending');
     }, 2000);
   }
 
-  // Clean up timeouts
   useEffect(() => {
     return () => {
       if (recognitionTimeout.current) {
@@ -186,7 +174,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
             />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Face detection box */}
             <div 
               ref={boxRef}
               className={`absolute border-2 ${
@@ -196,7 +183,6 @@ const TakeAttendance: React.FC<TakeAttendanceProps> = ({ onBack }) => {
               } hidden`}
             />
             
-            {/* Recognition status overlay */}
             {recognitionStatus === 'recognized' && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-30">
                 <div className="bg-success/20 p-4 rounded-full mb-3">
