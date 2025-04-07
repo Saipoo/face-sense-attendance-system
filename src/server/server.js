@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/smart_attendance', {
+mongoose.connect('mongodb://localhost:27017/smartAttendance', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
