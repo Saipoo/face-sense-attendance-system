@@ -28,20 +28,54 @@ export function AppProvider({ children }: AppProviderProps) {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [timetable, setTimetable] = useState<Timetable | null>(null);
 
-  // Fetch student face data on initialization
+  // Fetch and refresh attendance data
+  const getCurrentDate = () => {
+    const now = new Date();
+    // Adjust for timezone offset to get local date
+    const timezoneOffset = now.getTimezoneOffset() * 60000;
+    const localDate = new Date(now.getTime() - timezoneOffset);
+    return localDate.toISOString().split('T')[0];
+  };
+
+  const refreshAttendanceData = async () => {
+    try {
+      const today = getCurrentDate();
+      console.log('Fetching attendance for date:', today);
+      const attendanceData = await api.getAttendanceByDate(today);
+      console.log('Refreshed attendance data:', attendanceData);
+      setAttendanceRecords(attendanceData);
+      return attendanceData;
+    } catch (err) {
+      console.error('Failed to refresh attendance data:', err);
+      throw err;
+    }
+  };
+
+  // Fetch initial data on initialization
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchInitialData = async () => {
       try {
-        console.log('Fetching student face data from server...');
+        console.log('Fetching initial data from server...');
+        
+        // Fetch students
         const studentData = await api.getAllStudentFaces();
         console.log(`Loaded ${studentData.length} students with face data`);
         setStudents(studentData);
+        
+        // Fetch timetable
+        const timetableData = await api.getTimetable();
+        console.log('Loaded timetable data');
+        setTimetable(timetableData);
+        
+        // Fetch today's attendance
+        await refreshAttendanceData();
+        
       } catch (err) {
-        console.error('Failed to fetch student face data:', err);
+        console.error('Failed to fetch initial data:', err);
       }
     };
 
-    fetchStudents();
+    fetchInitialData();
   }, []);
 
   const registerStudent = async (student: Student) => {
@@ -69,41 +103,88 @@ export function AppProvider({ children }: AppProviderProps) {
   };
 
   const addAttendanceRecord = async (record: AttendanceRecord) => {
-    // Check if student already marked attendance for this subject and date
-    const exists = attendanceRecords.some(
-      r => r.usn === record.usn && r.subject === record.subject && r.date === record.date
-    );
+    try {
+      // First check if attendance already exists
+      const todayRecords = await api.getAttendanceByDate(record.date);
+      const exists = todayRecords.some(
+        r => r.usn === record.usn && 
+             r.subject === record.subject && 
+             r.date === record.date
+      );
 
-    if (!exists) {
-      try {
-        // Send to backend first
-        await api.markAttendance(record);
-        
-        // Update local state if backend call succeeds
-        setAttendanceRecords(prev => [...prev, record]);
-      } catch (err) {
-        console.error('Failed to mark attendance:', err);
-        throw err;
+      if (exists) {
+        console.log('Attendance already marked for:', {
+          usn: record.usn,
+          subject: record.subject,
+          date: record.date
+        });
+        return { exists: true };
       }
+
+      // Save to backend
+      const savedRecord = await api.markAttendance(record);
+      console.log('Attendance saved:', savedRecord);
+
+      // Refresh attendance data
+      await refreshAttendanceData();
+      
+      return savedRecord;
+    } catch (err) {
+      console.error('Attendance marking failed:', {
+        error: err,
+        record: record
+      });
+      throw err;
     }
   };
 
   const getCurrentSubject = () => {
-    if (!timetable) return null;
+    if (!timetable || timetable.subjects.length === 0) {
+      console.log('No timetable or subjects found');
+      return null;
+    }
     
     const now = new Date();
     const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTime = currentHours * 100 + currentMinutes; // Convert to HHMM format
     
+    console.log('Current time check:', {
+      day: dayOfWeek,
+      time: `${currentHours}:${currentMinutes}`,
+      timetableSubjects: timetable.subjects
+    });
+
     const currentSubject = timetable.subjects.find(subject => {
-      return (
-        subject.day === dayOfWeek &&
-        subject.startTime <= currentTime &&
-        subject.endTime > currentTime
-      );
+      // Parse subject times
+      const [startHour, startMin] = subject.startTime.split(':').map(Number);
+      const [endHour, endMin] = subject.endTime.split(':').map(Number);
+      
+      const startTime = startHour * 100 + startMin;
+      const endTime = endHour * 100 + endMin;
+      
+      const isCurrentDay = subject.day === dayOfWeek;
+      const isCurrentTime = currentTime >= startTime && currentTime <= endTime;
+      
+      console.log(`Checking subject ${subject.code}:`, {
+        dayMatch: isCurrentDay,
+        timeMatch: isCurrentTime,
+        subjectDay: subject.day,
+        subjectTime: `${subject.startTime}-${subject.endTime}`,
+        currentTime
+      });
+      
+      return isCurrentDay && isCurrentTime;
     });
     
-    return currentSubject ? currentSubject.code : null;
+    if (!currentSubject) {
+      console.log('No active subject found for current time');
+      return null;
+    }
+    
+    console.log('Active subject found:', currentSubject.code);
+    return currentSubject.code;
   };
 
   const value = {
@@ -117,6 +198,8 @@ export function AppProvider({ children }: AppProviderProps) {
     timetable,
     setTimetable,
     getCurrentSubject,
+    refreshAttendanceData,
+    getCurrentDate,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

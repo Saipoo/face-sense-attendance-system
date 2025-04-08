@@ -19,18 +19,55 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:8080', // Update with your frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Handle preflight requests
+app.options('*', cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for face data
 
 // MongoDB Connection with cloud MongoDB
-const MONGODB_URI = 'mongodb+srv://alltimebest68:Poorna@123@cluster0.vn5g362.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const MONGODB_URI = 'mongodb://localhost:27017/attendance';
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected to cloud database'))
-.catch(err => console.error('MongoDB connection error:', err));
+const connectWithRetry = () => {
+  console.log('Attempting MongoDB connection...');
+  return mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 30000,
+    connectTimeoutMS: 30000
+  })
+  .then(() => {
+    console.log('MongoDB successfully connected');
+    return mongoose.connection;
+  })
+  .catch(err => {
+    console.error('MongoDB connection failed:', err);
+    console.log('Retrying connection in 5 seconds...');
+    setTimeout(connectWithRetry, 5000);
+  });
+};
+
+// Connection events
+mongoose.connection.on('connecting', () => {
+  console.log('Connecting to MongoDB...');
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  console.log('Attempting to reconnect...');
+  connectWithRetry();
+});
+
+// Start initial connection
+connectWithRetry();
 
 // Define Schemas
 const studentSchema = new mongoose.Schema({
@@ -138,8 +175,44 @@ downloadFaceApiModels();
 // Student Registration
 app.post('/api/students', async (req, res) => {
   try {
-    const { usn, faceDescriptor, photoData } = req.body;
+    const { usn, name, faceDescriptor, photoData } = req.body;
     
+    // Validate required fields
+    if (!usn || !faceDescriptor) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'USN and faceDescriptor are required fields',
+        received: {
+          usn: !!usn,
+          faceDescriptor: faceDescriptor ? 'present' : 'missing',
+          photoData: photoData ? 'present' : 'missing'
+        }
+      });
+    }
+
+    if (typeof usn !== 'string' || usn.trim() === '') {
+      return res.status(400).json({
+        error: 'Validation failed',
+        message: 'USN must be a non-empty string'
+      });
+    }
+
+    if (!Array.isArray(faceDescriptor) || faceDescriptor.length === 0) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        message: 'faceDescriptor must be a non-empty array of numbers',
+        receivedType: Array.isArray(faceDescriptor) ? 'array' : typeof faceDescriptor
+      });
+    }
+
+    // Validate faceDescriptor values are numbers
+    if (faceDescriptor.some(isNaN)) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        message: 'faceDescriptor array must contain only numbers'
+      });
+    }
+
     console.log(`Registering student with USN: ${usn}`);
     
     // Check if student already exists
@@ -168,7 +241,23 @@ app.post('/api/students', async (req, res) => {
     res.status(201).json(student);
   } catch (error) {
     console.error('Error registering student:', error);
-    res.status(500).json({ error: 'Failed to register student' });
+    console.error('Full error stack:', error.stack);
+    console.error('Request body:', {
+      usn: req.body?.usn,
+      faceDescriptorLength: req.body?.faceDescriptor?.length,
+      photoDataLength: req.body?.photoData?.length 
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to register student',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      validation: {
+        usn: !!req.body?.usn,
+        faceDescriptor: Array.isArray(req.body?.faceDescriptor),
+        photoData: !!req.body?.photoData
+      }
+    });
   }
 });
 
@@ -213,7 +302,7 @@ app.get('/api/students/face-descriptors', async (req, res) => {
 // Mark attendance
 app.post('/api/attendance', async (req, res) => {
   try {
-    const { usn, subject, date, time } = req.body;
+    const { usn, subject, subjectCode, date, time } = req.body;
     
     // Check if attendance already marked
     const existingAttendance = await Attendance.findOne({
@@ -229,6 +318,7 @@ app.post('/api/attendance', async (req, res) => {
     const attendance = new Attendance({
       usn,
       subject,
+      subjectCode,
       date,
       time
     });
@@ -272,7 +362,58 @@ app.post('/api/timetable', async (req, res) => {
 app.get('/api/timetable', async (req, res) => {
   try {
     const timetable = await Timetable.findOne();
-    res.status(200).json(timetable || { subjects: [] });
+    const now = new Date();
+    const currentDay = now.toLocaleString('en-US', { weekday: 'long' });
+    const currentHours = now.getHours().toString().padStart(2, '0');
+    const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+    const currentTime = `${currentHours}:${currentMinutes}`;
+
+    console.log('Current timetable check:', {
+      serverTime: now.toISOString(),
+      currentDay,
+      currentTime
+    });
+
+    if (!timetable) {
+      console.log('No timetable found in database');
+      return res.status(200).json({ 
+        subjects: [],
+        message: 'No timetable found'
+      });
+    }
+
+    // Log all subjects for debugging
+    console.log('Timetable contains subjects:', timetable.subjects.map(s => ({
+      code: s.code,
+      name: s.name,
+      day: s.day,
+      time: `${s.startTime}-${s.endTime}`
+    })));
+
+    // Find active classes
+    const activeSubjects = timetable.subjects.filter(subject => {
+      const isCurrentDay = subject.day === currentDay;
+      const isCurrentTime = subject.startTime <= currentTime && 
+                          subject.endTime >= currentTime;
+      
+      console.log(`Checking subject ${subject.code}:`, {
+        matchesDay: isCurrentDay,
+        matchesTime: isCurrentTime,
+        subjectDay: subject.day,
+        subjectTime: `${subject.startTime}-${subject.endTime}`
+      });
+
+      return isCurrentDay && isCurrentTime;
+    });
+
+    console.log('Active subjects found:', activeSubjects.length);
+    res.status(200).json({ 
+      subjects: timetable.subjects,
+      activeSubjects,
+      currentDay,
+      currentTime,
+      serverTime: now.toISOString()
+    });
   } catch (error) {
     console.error('Error fetching timetable:', error);
     res.status(500).json({ error: 'Failed to fetch timetable' });
@@ -407,7 +548,7 @@ app.get('/api/attendance/:date/pdf', async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

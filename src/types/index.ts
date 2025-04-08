@@ -3,8 +3,9 @@ export type UserRole = 'student' | 'teacher';
 
 export interface Student {
   usn: string;
-  faceDescriptor?: Float32Array;
+  faceDescriptor?: Float32Array | number[];
   name?: string;
+  photoData?: string; // base64 encoded image
 }
 
 export interface Subject {
@@ -18,6 +19,7 @@ export interface Subject {
 export interface AttendanceRecord {
   usn: string;
   subject: string;
+  subjectCode?: string;
   date: string;
   time: string;
 }

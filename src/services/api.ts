@@ -2,16 +2,33 @@
 
 import { Student, AttendanceRecord, Timetable } from '../types';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:5001/api';
 
 export async function registerStudentFace(student: Student): Promise<Student> {
   console.log('Registering student face:', student.usn);
+  // Validate and format student data before sending
+  if (!student.usn || !student.faceDescriptor) {
+    throw new Error('USN and faceDescriptor are required');
+  }
+
+  // Convert Float32Array to regular array if needed
+  const faceDescriptor = student.faceDescriptor instanceof Float32Array
+    ? Array.from(student.faceDescriptor)
+    : student.faceDescriptor || [];
+
+  const payload = {
+    usn: student.usn.toString().trim(),
+    name: student.name?.toString().trim() || '',
+    faceDescriptor: faceDescriptor.map(Number),
+    photoData: student.photoData
+  };
+
   const response = await fetch(`${API_URL}/students`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(student),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -24,7 +41,9 @@ export async function registerStudentFace(student: Student): Promise<Student> {
 
 export async function getAllStudentFaces(): Promise<Student[]> {
   console.log('Fetching all student faces');
-  const response = await fetch(`${API_URL}/students/face-descriptors`);
+  const response = await fetch(`${API_URL}/students/face-descriptors`, {
+    credentials: 'include'
+  });
   
   if (!response.ok) {
     const error = await response.json();
@@ -41,6 +60,7 @@ export async function markAttendance(record: AttendanceRecord): Promise<Attendan
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify(record),
   });
 
@@ -53,7 +73,9 @@ export async function markAttendance(record: AttendanceRecord): Promise<Attendan
 }
 
 export async function getAttendanceByDate(date: string): Promise<AttendanceRecord[]> {
-  const response = await fetch(`${API_URL}/attendance/${date}`);
+  const response = await fetch(`${API_URL}/attendance/${date}`, {
+    credentials: 'include'
+  });
   
   if (!response.ok) {
     const error = await response.json();
@@ -69,6 +91,7 @@ export async function saveTimetable(timetable: Timetable): Promise<Timetable> {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify(timetable),
   });
 
@@ -81,7 +104,9 @@ export async function saveTimetable(timetable: Timetable): Promise<Timetable> {
 }
 
 export async function getTimetable(): Promise<Timetable> {
-  const response = await fetch(`${API_URL}/timetable`);
+  const response = await fetch(`${API_URL}/timetable`, {
+    credentials: 'include'
+  });
   
   if (!response.ok) {
     const error = await response.json();

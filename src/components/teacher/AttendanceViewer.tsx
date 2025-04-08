@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
 import { Download, FileText, File } from 'lucide-react';
+import * as api from '../../services/api';
 
 const AttendanceViewer: React.FC = () => {
   const { attendanceRecords } = useApp();
@@ -43,12 +44,32 @@ const AttendanceViewer: React.FC = () => {
     return acc;
   }, {} as Record<string, typeof todaysRecords>);
 
-  const handleDownload = (format: 'excel' | 'pdf') => {
-    // In a real app, this would call an API to generate and download the file
-    toast({
-      title: `${format.toUpperCase()} Download`,
-      description: `Attendance for ${selectedDate} will be downloaded as ${format.toUpperCase()}`,
-    });
+  const handleDownload = async (format: 'excel' | 'pdf') => {
+    try {
+      // Create download URL based on format
+      const url = format === 'excel' 
+        ? api.getExcelDownloadUrl(selectedDate)
+        : api.getPdfDownloadUrl(selectedDate);
+      
+      // Create temporary anchor element to trigger download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_${selectedDate}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      toast({
+        title: 'Download Started',
+        description: `Attendance data is being downloaded as ${format.toUpperCase()}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Download Failed',
+        description: `Failed to download attendance data: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -102,6 +123,8 @@ const AttendanceViewer: React.FC = () => {
                   <thead>
                     <tr>
                       <th className="text-left p-2">USN</th>
+                      <th className="text-left p-2">Subject</th>
+                      <th className="text-left p-2">Subject Code</th>
                       <th className="text-left p-2">Time</th>
                     </tr>
                   </thead>
@@ -109,6 +132,8 @@ const AttendanceViewer: React.FC = () => {
                     {records.map((record, index) => (
                       <tr key={index} className={index % 2 === 0 ? 'bg-muted/20' : ''}>
                         <td className="p-2">{record.usn}</td>
+                        <td className="p-2">{record.subject}</td>
+                        <td className="p-2">{(record as any).subjectCode || 'N/A'}</td>
                         <td className="p-2">{record.time}</td>
                       </tr>
                     ))}
