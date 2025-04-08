@@ -31,7 +31,7 @@ app.options('*', cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for face data
 
 // MongoDB Connection with cloud MongoDB
-const MONGODB_URI = 'mongodb://localhost:27017/attendance';
+const MONGODB_URI = 'mongodb+srv://alltimebest68:Poorna%40123@cluster0.vn5g362.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tls=true&tlsAllowInvalidCertificates=true';
 
 const connectWithRetry = () => {
   console.log('Attempting MongoDB connection...');
