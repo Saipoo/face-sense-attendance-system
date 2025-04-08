@@ -2,7 +2,7 @@
 
 import { Student, AttendanceRecord, Timetable } from '../types';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export async function registerStudentFace(student: Student): Promise<Student> {
   console.log('Registering student face:', student.usn);
